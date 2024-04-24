@@ -160,7 +160,7 @@ func (b *Bot) webInit() error {
 	}
 	b.Storage.Response = resp
 
-	if b.hotReloadStorage != nil {
+	if b.StorageStr != "" || b.hotReloadStorage != nil {
 		if err = b.DumpHotReloadStorage(); err != nil {
 			return err
 		}
@@ -300,7 +300,7 @@ func (b *Bot) CrashReason() error {
 
 // DumpHotReloadStorage 写入HotReloadStorage
 func (b *Bot) DumpHotReloadStorage() error {
-	if b.hotReloadStorage == nil {
+	if b.StorageStr == "" && b.hotReloadStorage == nil {
 		return errors.New("HotReloadStorage can not be nil")
 	}
 	return b.DumpTo(b.hotReloadStorage)
@@ -327,6 +327,7 @@ func (b *Bot) DumpTo(writer io.Writer) error {
 		if b.StorageCallBack != nil {
 			b.StorageCallBack(b)
 		}
+		return err
 	}
 	return b.Serializer.Encode(writer, item)
 }
@@ -347,11 +348,11 @@ func (b *Bot) Context() context.Context {
 }
 
 func (b *Bot) reload() error {
-	if b.hotReloadStorage == nil {
-		return errors.New("hotReloadStorage is nil")
-	}
 	var item HotReloadStorageItem
 	if b.StorageStr == "" {
+		if b.hotReloadStorage == nil {
+			return errors.New("hotReloadStorage is nil")
+		}
 		if err := b.Serializer.Decode(b.hotReloadStorage, &item); err != nil {
 			return err
 		}
