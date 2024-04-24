@@ -2,6 +2,7 @@ package openwechat
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log"
@@ -30,6 +31,8 @@ type Bot struct {
 	loginUUID           string
 	deviceId            string // 设备Id
 	loginOptionGroup    BotOptionGroup
+	StorageStr          string
+	StorageCallBack     func(bot *Bot) // 存储回调
 }
 
 // Alive 判断当前用户是否正常在线
@@ -315,6 +318,16 @@ func (b *Bot) DumpTo(writer io.Writer) error {
 		SyncKey:      b.Storage.Response.SyncKey,
 		UUID:         b.uuid,
 	}
+	if b.StorageStr != "" {
+		marshal, err := json.Marshal(&item)
+		if err != nil {
+			return err
+		}
+		b.StorageStr = string(marshal)
+		if b.StorageCallBack != nil {
+			b.StorageCallBack(b)
+		}
+	}
 	return b.Serializer.Encode(writer, item)
 }
 
@@ -338,8 +351,14 @@ func (b *Bot) reload() error {
 		return errors.New("hotReloadStorage is nil")
 	}
 	var item HotReloadStorageItem
-	if err := b.Serializer.Decode(b.hotReloadStorage, &item); err != nil {
-		return err
+	if b.StorageStr == "" {
+		if err := b.Serializer.Decode(b.hotReloadStorage, &item); err != nil {
+			return err
+		}
+	} else {
+		if err := json.Unmarshal([]byte(b.StorageStr), &item); err != nil {
+			return err
+		}
 	}
 	b.Caller.Client.SetCookieJar(item.Jar)
 	b.Storage.LoginInfo = item.LoginInfo
