@@ -1,5 +1,5 @@
-module github.com/useryyi/tms-openwechat
+module github.com/eatmoreapple/openwechat
 
-go 1.22
+go 1.20
 
 

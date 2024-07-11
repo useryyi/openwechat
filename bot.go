@@ -12,7 +12,7 @@ import (
 )
 
 type Bot struct {
-	BotNickName         string //机器人名称
+	BotNickName         string                        //机器人名称
 	ScanCallBack        func(body CheckLoginResponse) // 扫码回调,可获取扫码用户的头像
 	LoginCallBack       func(body CheckLoginResponse) // 登陆回调
 	LogoutCallBack      func(bot *Bot)                // 退出回调
@@ -184,6 +184,9 @@ func (b *Bot) webInit() error {
 			b.MessageErrorHandler = defaultMessageErrorHandler
 		}
 		for {
+			if !b.Alive() {
+				return
+			}
 			if err = b.syncCheck(); err != nil {
 				// 判断是否继续, 如果不继续则退出
 				if err = b.MessageErrorHandler(err); err != nil {

@@ -185,7 +185,11 @@ func (c *Client) HTTPClient() *http.Client {
 
 // GetLoginUUID 获取登录的uuid
 func (c *Client) GetLoginUUID(ctx context.Context) (*http.Response, error) {
-	return c.mode.GetLoginUUID(ctx, c)
+	req, err := c.mode.BuildGetLoginUUIDRequest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return c.Do(req)
 }
 
 // GetLoginQrcode 获取登录的二维吗
@@ -221,7 +225,11 @@ func (c *Client) CheckLogin(ctx context.Context, uuid, tip string) (*http.Respon
 
 // GetLoginInfo 请求获取LoginInfo
 func (c *Client) GetLoginInfo(ctx context.Context, path *url.URL) (*http.Response, error) {
-	return c.mode.GetLoginInfo(ctx, c, path.String())
+	req, err := c.mode.BuildGetLoginInfoRequest(ctx, path.String())
+	if err != nil {
+		return nil, err
+	}
+	return c.Do(req)
 }
 
 // WebInit 请求获取初始化信息
@@ -430,6 +438,21 @@ func (c *Client) WebWxSendMsg(ctx context.Context, opt *ClientWebWxSendMsgOption
 	return c.sendMessage(ctx, opt.BaseRequest, path.String(), opt.Message)
 }
 
+// WebWxSendMsg 发送表情消息
+func (c *Client) WebWxSendEmoticon(ctx context.Context, opt *ClientWebWxSendMsgOptions) (*http.Response, error) {
+	opt.Message.Type = MsgTypeText
+	path, err := url.Parse(c.Domain.BaseHost() + webwxsendemoticon)
+	if err != nil {
+		return nil, err
+	}
+	params := url.Values{}
+	params.Add("fun", "sys")
+	params.Add("lang", "zh_CN")
+	params.Add("pass_ticket", opt.LoginInfo.PassTicket)
+	path.RawQuery = params.Encode()
+	return c.sendMessage(ctx, opt.BaseRequest, path.String(), opt.Message)
+}
+
 // WebWxGetHeadImg 获取用户的头像
 func (c *Client) WebWxGetHeadImg(ctx context.Context, user *User) (*http.Response, error) {
 	var path string
@@ -459,31 +482,30 @@ func (c *Client) WebWxGetHeadImg(ctx context.Context, user *User) (*http.Respons
 type ClientWebWxUploadMediaByChunkOptions struct {
 	FromUserName string
 	ToUserName   string
-	File         *os.File
 	BaseRequest  *BaseRequest
 	LoginInfo    *LoginInfo
 }
 
 // WebWxUploadMediaByChunk 分块上传文件
 // TODO 优化掉这个函数
-func (c *Client) WebWxUploadMediaByChunk(ctx context.Context, opt *ClientWebWxUploadMediaByChunkOptions) (*http.Response, error) {
+func (c *Client) WebWxUploadMediaByChunk(ctx context.Context, file *os.File, opt *ClientWebWxUploadMediaByChunkOptions) (*http.Response, error) {
 	// 获取文件上传的类型
-	contentType, err := GetFileContentType(opt.File)
+	contentType, err := GetFileContentType(file)
 	if err != nil {
 		return nil, err
 	}
-	if _, err = opt.File.Seek(io.SeekStart, 0); err != nil {
+	if _, err = file.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
 
 	// 获取文件的md5
 	h := md5.New()
-	if _, err = io.Copy(h, opt.File); err != nil {
+	if _, err = io.Copy(h, file); err != nil {
 		return nil, err
 	}
 	fileMd5 := hex.EncodeToString(h.Sum(nil))
 
-	sate, err := opt.File.Stat()
+	sate, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
@@ -532,9 +554,7 @@ func (c *Client) WebWxUploadMediaByChunk(ctx context.Context, opt *ClientWebWxUp
 	}
 
 	// 计算上传文件的次数
-	chunks := (sate.Size() + chunkSize - 1) / chunkSize
-
-	var resp *http.Response
+	chunks := int((sate.Size() + chunkSize - 1) / chunkSize)
 
 	content := map[string]string{
 		"id":                "WU_FILE_0",
@@ -548,78 +568,75 @@ func (c *Client) WebWxUploadMediaByChunk(ctx context.Context, opt *ClientWebWxUp
 	}
 
 	if chunks > 1 {
-		content["chunks"] = strconv.FormatInt(chunks, 10)
+		content["chunks"] = strconv.Itoa(chunks)
 	}
 
-	if _, err = opt.File.Seek(0, 0); err != nil {
-		return nil, err
-	}
+	var (
+		resp       *http.Response
+		formBuffer = bytes.NewBuffer(nil)
+	)
 
-	var chunkBuff = make([]byte, chunkSize)
-
-	var formBuffer = bytes.NewBuffer(nil)
-
-	// 分块上传
-	for chunk := 0; int64(chunk) < chunks; chunk++ {
+	upload := func(chunk int, fileReader io.Reader) error {
 		if chunks > 1 {
 			content["chunk"] = strconv.Itoa(chunk)
 		}
-
 		formBuffer.Reset()
 
 		writer := multipart.NewWriter(formBuffer)
 
-		if err = writer.WriteField("uploadmediarequest", string(uploadMediaRequestByte)); err != nil {
-			return nil, err
-		}
+		// write form data
+		{
+			if err = writer.WriteField("uploadmediarequest", string(uploadMediaRequestByte)); err != nil {
+				return err
+			}
+			for k, v := range content {
+				if err := writer.WriteField(k, v); err != nil {
+					return err
+				}
+			}
 
-		for k, v := range content {
-			if err := writer.WriteField(k, v); err != nil {
-				return nil, err
+			// create form file
+			fileWriter, err := writer.CreateFormFile("filename", file.Name())
+			if err != nil {
+				return err
+			}
+			if _, err = io.Copy(fileWriter, fileReader); err != nil {
+				return err
+			}
+			if err = writer.Close(); err != nil {
+				return err
 			}
 		}
-
-		w, err := writer.CreateFormFile("filename", opt.File.Name())
-		if err != nil {
-			return nil, err
-		}
-
-		n, err := opt.File.Read(chunkBuff)
-
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		if _, err = w.Write(chunkBuff[:n]); err != nil {
-			return nil, err
-		}
-		ct := writer.FormDataContentType()
-		if err = writer.Close(); err != nil {
-			return nil, err
-		}
-
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, path.String(), formBuffer)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		req.Header.Set("Content-Type", ct)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
 
-		// 发送数据
 		resp, err = c.Do(req)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		isLastTime := int64(chunk)+1 == chunks
-		// 如果不是最后一次, 解析有没有错误
-		if !isLastTime {
-			parser := MessageResponseParser{Reader: resp.Body}
-			if err = parser.Err(); err != nil {
-				_ = resp.Body.Close()
-				return nil, err
+		// parse response error
+		{
+			isLastTime := chunk+1 == chunks
+			if !isLastTime {
+				defer func() { _ = resp.Body.Close() }()
+				parser := MessageResponseParser{Reader: resp.Body}
+				err = parser.Err()
 			}
-			if err = resp.Body.Close(); err != nil {
-				return nil, err
-			}
+		}
+		return err
+	}
+
+	// 分块上传
+	for chunk := 0; chunk < chunks; chunk++ {
+		// chunk reader
+		selectionReader := io.NewSectionReader(file, int64(chunk)*chunkSize, chunkSize)
+		// try to upload
+		if err = upload(chunk, selectionReader); err != nil {
+			return nil, err
 		}
 	}
 	// 将最后一次携带文件信息的response返回
@@ -963,6 +980,7 @@ func (c *Client) WebWxRevokeMsg(ctx context.Context, msg *SentMessage, request *
 }
 
 // 校验上传文件
+// nolint:unused
 func (c *Client) webWxCheckUpload(stat os.FileInfo, request *BaseRequest, fileMd5, fromUserName, toUserName string) (*http.Response, error) {
 	path, err := url.Parse(c.Domain.BaseHost() + webwxcheckupload)
 	if err != nil {
@@ -1057,7 +1075,11 @@ func (c *Client) WebWxRelationPin(ctx context.Context, opt *ClientWebWxRelationP
 
 // WebWxPushLogin 免扫码登陆接口
 func (c *Client) WebWxPushLogin(ctx context.Context, uin int64) (*http.Response, error) {
-	return c.mode.PushLogin(ctx, c, uin)
+	req, err := c.mode.BuildPushLoginRequest(ctx, c.Domain.BaseHost(), uin)
+	if err != nil {
+		return nil, err
+	}
+	return c.Do(req)
 }
 
 // WebWxSendVideoMsg 发送视频消息接口
