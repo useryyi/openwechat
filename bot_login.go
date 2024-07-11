@@ -200,7 +200,12 @@ func (h *HotLogin) Login(bot *Bot) error {
 	if err := botReload(bot, h.storage); err != nil {
 		return err
 	}
-	return bot.webInit()
+	r := bot.webInit()
+	//执行登录成功回调
+	if cb := bot.LoginCallBack; cb != nil {
+		cb(nil)
+	}
+	return r
 }
 
 // PushLogin 免扫码登录模式

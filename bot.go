@@ -159,10 +159,6 @@ func (b *Bot) webInit() error {
 	if b.Storage.Response != nil {
 		resp.SyncKey = b.Storage.Response.SyncKey
 	}
-	//执行登录成功回调
-	if cb := b.LoginCallBack; cb != nil {
-		cb(nil)
-	}
 	b.Storage.Response = resp
 
 	if b.StorageStr != "" || b.hotReloadStorage != nil {
