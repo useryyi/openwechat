@@ -61,8 +61,11 @@ func (u UserAgentHook) BeforeRequest(req *http.Request) {
 
 func (u UserAgentHook) AfterRequest(_ *http.Response, _ error) {}
 
+// Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36
+// Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15
 // defaultUserAgentHook 默认的User-Agent钩子
-var defaultUserAgentHook = UserAgentHook{"Mozilla/5.0 (Linux; U; UOS x86_64; zh-cn) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 UOSBrowser/6.0.1.1001"}
+// var defaultUserAgentHook = UserAgentHook{"Mozilla/5.0 (Linux; U; UOS x86_64; zh-cn) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 UOSBrowser/6.0.1.1001"}
+var defaultUserAgentHook = UserAgentHook{"Mozilla/5.0 (Linux; U; UOS x86_64; zh-cn) AppleWebKit/605.1.15 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/605.1.15 UOSBrowser/6.0.1.1001"}
 
 // Client http请求客户端
 // 客户端需要维持Session会话
