@@ -34,12 +34,12 @@ func (s *senderInGroupMessageProcessor) ProcessMessage(msg *Message) {
 	if !msg.IsSendByGroup() || msg.IsSystem() || msg.IsSendBySelf() {
 		return
 	}
-	data := strings.Split(msg.Content, ":<br/>")
-	if len(data) < 2 {
+	index := strings.Index(msg.Content, ":<br/>")
+	if index == -1 {
 		return
 	}
-	msg.Content = strings.Join(data[1:], "")
-	msg.senderUserNameInGroup = data[0]
+	msg.Content = msg.Content[index+6:]
+	msg.senderUserNameInGroup = msg.Content[:index]
 }
 
 // 检查消息是否被@了, 不是特别严谨
