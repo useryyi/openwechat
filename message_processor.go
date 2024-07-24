@@ -38,8 +38,8 @@ func (s *senderInGroupMessageProcessor) ProcessMessage(msg *Message) {
 	if index == -1 {
 		return
 	}
-	msg.Content = msg.Content[index+6:]
 	msg.senderUserNameInGroup = msg.Content[:index]
+	msg.Content = msg.Content[index+6:]
 }
 
 // 检查消息是否被@了, 不是特别严谨
