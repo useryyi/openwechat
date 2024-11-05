@@ -131,7 +131,7 @@ func (m *Message) Receiver() (*User, error) {
 			if err := group.Detail(); err == nil {
 				return group, nil
 			}
-			return nil, ErrNoSuchUserFoundError
+			return nil, ErrNoSuchUserFound
 		}
 		return users.First().User, nil
 	} else {
@@ -141,7 +141,7 @@ func (m *Message) Receiver() (*User, error) {
 		}
 		user, exist := members.GetByUserName(m.ToUserName)
 		if !exist {
-			return nil, ErrNoSuchUserFoundError
+			return nil, ErrNoSuchUserFound
 		}
 		return user, nil
 	}
@@ -171,7 +171,7 @@ func (m *Message) IsSelfSendToGroup() bool {
 func (m *Message) ReplyText(content string) (*SentMessage, error) {
 	// 判断是否由自己发送
 	username := m.FromUserName
-	if m.IsSelfSendToGroup() {
+	if m.IsSendBySelf() {
 		username = m.ToUserName
 	}
 	return m.Owner().sendTextToUser(username, content)
@@ -181,7 +181,7 @@ func (m *Message) ReplyText(content string) (*SentMessage, error) {
 func (m *Message) ReplyEmoticon(md5 string, file io.Reader) (*SentMessage, error) {
 	// 判断是否由自己发送
 	username := m.FromUserName
-	if m.IsSelfSendToGroup() {
+	if m.IsSendBySelf() {
 		username = m.ToUserName
 	}
 	return m.Owner().sendEmoticonToUser(username, md5, file)
@@ -191,7 +191,7 @@ func (m *Message) ReplyEmoticon(md5 string, file io.Reader) (*SentMessage, error
 func (m *Message) ReplyImage(file io.Reader) (*SentMessage, error) {
 	// 判断是否由自己发送
 	username := m.FromUserName
-	if m.IsSelfSendToGroup() {
+	if m.IsSendBySelf() {
 		username = m.ToUserName
 	}
 	return m.Owner().sendImageToUser(username, file)
@@ -201,7 +201,7 @@ func (m *Message) ReplyImage(file io.Reader) (*SentMessage, error) {
 func (m *Message) ReplyVideo(file io.Reader) (*SentMessage, error) {
 	// 判断是否由自己发送
 	username := m.FromUserName
-	if m.IsSelfSendToGroup() {
+	if m.IsSendBySelf() {
 		username = m.ToUserName
 	}
 	return m.Owner().sendVideoToUser(username, file)
@@ -211,7 +211,7 @@ func (m *Message) ReplyVideo(file io.Reader) (*SentMessage, error) {
 func (m *Message) ReplyFile(file io.Reader) (*SentMessage, error) {
 	// 判断是否由自己发送
 	username := m.FromUserName
-	if m.IsSelfSendToGroup() {
+	if m.IsSendBySelf() {
 		username = m.ToUserName
 	}
 	return m.Owner().sendFileToUser(username, file)
@@ -284,7 +284,7 @@ func (m *Message) IsTransferAccounts() bool {
 	return m.IsMedia() && m.FileName == "微信转账"
 }
 
-// IsSendRedPacket 否发出红包判断当前是
+// IsSendRedPacket 判断当前是否发出红包
 func (m *Message) IsSendRedPacket() bool {
 	return m.IsSystem() && m.Content == "发出红包，请在手机上查看"
 }

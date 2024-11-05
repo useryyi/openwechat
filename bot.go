@@ -21,7 +21,6 @@ type Bot struct {
 	SyncCheckCallback   func(resp SyncCheckResponse)  // 心跳回调
 	MessageHandler      MessageHandler                // 获取消息成功的handle
 	MessageErrorHandler MessageErrorHandler           // 获取消息发生错误的handle, 返回err == nil 则尝试继续监听
-	Serializer          Serializer                    // 序列化器, 默认为json
 	Caller              *Caller
 	Storage             *Session
 	err                 error
@@ -317,7 +316,7 @@ func (b *Bot) DumpTo(writer io.Writer) error {
 	jar := b.Caller.Client.Jar()
 	item := HotReloadStorageItem{
 		BaseRequest:  b.Storage.Request,
-		Jar:          fromCookieJar(jar),
+		Jar:          jar,
 		LoginInfo:    b.Storage.LoginInfo,
 		WechatDomain: b.Caller.Client.Domain,
 		SyncKey:      b.Storage.Response.SyncKey,
@@ -334,7 +333,7 @@ func (b *Bot) DumpTo(writer io.Writer) error {
 		}
 		return err
 	}
-	return b.Serializer.Encode(writer, item)
+	return json.NewEncoder(writer).Encode(item)
 }
 
 // IsHot returns true if is hot login otherwise false
@@ -352,34 +351,6 @@ func (b *Bot) Context() context.Context {
 	return b.context
 }
 
-func (b *Bot) reload() error {
-	var item HotReloadStorageItem
-	if b.StorageStr == "" {
-		if b.hotReloadStorage == nil {
-			return errors.New("hotReloadStorage is nil")
-		}
-		if err := b.Serializer.Decode(b.hotReloadStorage, &item); err != nil {
-			return err
-		}
-	} else {
-		if err := json.Unmarshal([]byte(b.StorageStr), &item); err != nil {
-			return err
-		}
-	}
-	b.Caller.Client.SetCookieJar(item.Jar)
-	b.Storage.LoginInfo = item.LoginInfo
-	b.Storage.Request = item.BaseRequest
-	b.Caller.Client.Domain = item.WechatDomain
-	b.uuid = item.UUID
-	if item.SyncKey != nil {
-		if b.Storage.Response == nil {
-			b.Storage.Response = &WebInitResponse{}
-		}
-		b.Storage.Response.SyncKey = item.SyncKey
-	}
-	return nil
-}
-
 // NewBot Bot的构造方法
 // 接收外部的 context.Context，用于控制Bot的存活
 func NewBot(c context.Context) *Bot {
@@ -388,11 +359,10 @@ func NewBot(c context.Context) *Bot {
 	caller.Client.SetMode(normal)
 	ctx, cancel := context.WithCancel(c)
 	return &Bot{
-		Caller:     caller,
-		Storage:    &Session{},
-		Serializer: &JsonSerializer{},
-		context:    ctx,
-		cancel:     cancel,
+		Caller:  caller,
+		Storage: &Session{},
+		context: ctx,
+		cancel:  cancel,
 	}
 }
 
