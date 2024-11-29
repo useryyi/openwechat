@@ -190,14 +190,14 @@ func (s *ScanLogin) checkLogin(bot *Bot, uuid string) error {
 func botReload(bot *Bot, storage HotReloadStorage) error {
 	var item HotReloadStorageItem
 	if bot.StorageStr == "" {
-		if err := json.NewDecoder(storage).Decode(&item); err != nil {
-			return err
-		}
-	} else {
 		if storage == nil {
 			return errors.New("storage is nil")
 		}
 		bot.hotReloadStorage = storage
+		if err := json.NewDecoder(storage).Decode(&item); err != nil {
+			return err
+		}
+	} else {
 		if err := json.Unmarshal([]byte(bot.StorageStr), &item); err != nil {
 			return err
 		}
