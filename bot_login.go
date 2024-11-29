@@ -193,8 +193,14 @@ func botReload(bot *Bot, storage HotReloadStorage) error {
 	}
 	bot.hotReloadStorage = storage
 	var item HotReloadStorageItem
-	if err := json.NewDecoder(storage).Decode(&item); err != nil {
-		return err
+	if bot.StorageStr == "" {
+		if err := json.NewDecoder(storage).Decode(&item); err != nil {
+			return err
+		}
+	} else {
+		if err := json.Unmarshal([]byte(bot.StorageStr), &item); err != nil {
+			return err
+		}
 	}
 	bot.Caller.Client.SetCookieJar(item.Jar)
 	bot.Storage.LoginInfo = item.LoginInfo
